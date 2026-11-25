@@ -5,6 +5,7 @@ import { ThemeToggle } from "./theme-toggle";
 import type { PaletteItem } from "@/lib/palette";
 
 const NAV = [
+  { href: "/ask", label: "Ask" },
   { href: "/projects", label: "Projects" },
   { href: "/about", label: "About" },
 ];

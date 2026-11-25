@@ -44,6 +44,14 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
               {project.title}
             </h1>
             <p className="mt-4 max-w-[60ch] text-lg">{project.summary}</p>
+            <p className="mt-6">
+              <Link
+                href={`/ask?project=${project.slug}`}
+                className="inline-block rounded bg-accent px-4 py-2 text-accent-ink no-underline"
+              >
+                Ask about this project
+              </Link>
+            </p>
           </header>
           <div className="prose-field mt-8" dangerouslySetInnerHTML={{ __html: html }} />
         </article>
