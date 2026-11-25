@@ -72,7 +72,9 @@ Keep this section accurate as the project grows. Every milestone must leave thes
 # web
 pnpm --dir apps/web install
 pnpm --dir apps/web lint && pnpm --dir apps/web typecheck && pnpm --dir apps/web format:check
-pnpm --dir apps/web test && pnpm --dir apps/web test:e2e   # e2e: Playwright + axe
+pnpm --dir apps/web test && pnpm --dir apps/web test:e2e   # e2e: Playwright + axe, fixture content
+# preview the site with the fictional fixture content (content/ is empty until Michael adds write-ups)
+PROVENANCE_CONTENT_DIR=../../evals/fixtures/content pnpm --dir apps/web dev
 
 # api (integration tests need PROVENANCE_TEST_DATABASE_URL; all tests use MockProvider)
 cd apps/api && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
