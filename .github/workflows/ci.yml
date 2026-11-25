@@ -128,7 +128,7 @@ jobs:
       - run: uv run pytest
       - name: Retrieval evaluation (gated on the stored baseline)
         run: uv run python -m evals.retrieval --reset-database --output retrieval-report.json
-      - name: Generation pipeline and recruiter-mode check (free: mock model, heuristic judge)
+      - name: Generation pipeline and recruiter-mode check (free, mock model and heuristic judge)
         run: uv run python -m evals.generation --reset-database --embedder fake
       - uses: actions/upload-artifact@v4
         if: always()
