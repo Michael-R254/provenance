@@ -1,5 +1,5 @@
-"""Grading one generated answer. `AnthropicJudge` uses Claude Haiku 5.5 by default (cheapest) or
-Claude Opus 5.5 (most careful) with the fixed rubric in `rubrics/judge-v1.md`; `HeuristicJudge`
+"""Grading one generated answer. `AnthropicJudge` uses Claude Opus 5.5 by default (most careful)
+or Claude Haiku 5.5 (cheapest) with the fixed rubric in `rubrics/judge-v1.md`; `HeuristicJudge`
 is free and offline, for tests and mock runs only.
 """
 
@@ -20,7 +20,7 @@ RUBRIC_VERSION = "judge-v1"
 RUBRIC_PATH = EVALS_DIR / "rubrics" / f"{RUBRIC_VERSION}.md"
 
 JudgeModel = Literal["claude-haiku-5-5", "claude-opus-5-5"]
-DEFAULT_JUDGE_MODEL: JudgeModel = "claude-haiku-5-5"
+DEFAULT_JUDGE_MODEL: JudgeModel = "claude-opus-5-5"
 # USD per million tokens (input, output), Anthropic first-party rates.
 JUDGE_PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-5-5": (0.10, 0.50),

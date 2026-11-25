@@ -23,8 +23,6 @@ done together.
 - [ ] Paid generation evaluation run on the fixture corpus; baseline committed.
 - [ ] Paid generation evaluation run on the real content and question set; every distinction
       and adversarial question passes, or each failure is fixed or accepted by Michael.
-- [ ] One run of the same with the Opus judge (`--judge-model claude-opus-5-5`, about $0.85),
-      as a more careful check than the default Haiku judge.
 - [ ] (Michael) Thresholds in `evals/thresholds.yaml` reviewed and set to `approved`.
 
 ## Platform (README "Deployment")

@@ -22,10 +22,10 @@ There is no real content yet, so the first baseline has to come from the fiction
   sentences, at least one citation) and "no evidence" refusals come from the API's own events.
   The judge is only called when the model actually answered, so fixed "no evidence" replies cost
   nothing.
-- **Judge.** Claude Haiku 5.5 by default, chosen by Michael for cost (about $0.03 a run). Claude
-  Opus 5.5 is available with `--judge-model claude-opus-5-5` (about $0.85 a run) for a more
-  careful check before launch; architecture section 8 named Opus, and this ADR changes the
-  default. Both run at effort `medium` with structured JSON output (a flat schema) and the
+- **Judge.** Claude Opus 5.5 by default (about $0.85 a run), as architecture section 8 names;
+  Michael weighed the cheaper Claude Haiku 5.5 (about $0.03, `--judge-model claude-haiku-5-5`)
+  and kept Opus because it is the more careful grader and does not grade its own model's
+  answers. Both run at effort `medium` with structured JSON output (a flat schema) and the
   rubric in `rubrics/judge-v1.md`. The rubric treats the question, evidence and answer as
   data. If the judge declines, runs out of tokens or returns invalid JSON, the item is reported
   as unjudged and fails the gate; it is never guessed. There is no model fallback, so every
@@ -61,11 +61,11 @@ There is no real content yet, so the first baseline has to come from the fiction
 
 ## Consequences
 
-- A paid fixture run costs about $0.03 expected ($0.06 worst case) with the Haiku judge, and
-  about $0.85 ($1.79) with Opus. The default spending limit is $0.25.
-- Haiku grades answers written by Haiku, and is less careful than Opus at spotting subtle
-  unsupported claims. Every failure is listed with its reason for a human to read, and an Opus
-  run is on the launch checklist.
+- A paid fixture run costs about $0.85 expected ($1.79 worst case) with the Opus judge; the
+  default spending limit is $2.50. Haiku answers cost about a cent. The judge never runs on the
+  live site, only when a run is started by hand.
+- Haiku remains available for cheap routine checks; its scores are not compared with Opus
+  baselines (baselines are named after the judge model).
 - The first paid baseline waits for Michael's approval of the estimate and for the
   `paid-evals` environment and key.
 - The fixture corpus gained fictional guardrails so distinction checks exist before real

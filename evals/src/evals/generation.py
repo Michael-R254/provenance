@@ -547,7 +547,7 @@ def main(argv: list[str] | None = None) -> int:
         "--judge-model",
         choices=sorted(JUDGE_PRICES),
         default=DEFAULT_JUDGE_MODEL,
-        help="for --judge anthropic: Haiku is cheapest, Opus is the most careful",
+        help="for --judge anthropic: Opus is the most careful, Haiku about 30x cheaper",
     )
     parser.add_argument("--database-url")
     parser.add_argument(
@@ -555,7 +555,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="required: wipes the target database's public schema before indexing",
     )
-    parser.add_argument("--max-cost", type=float, default=0.25, help="hard limit in USD")
+    parser.add_argument("--max-cost", type=float, default=2.5, help="hard limit in USD")
     parser.add_argument("--yes", action="store_true", help="accept the estimate and spend")
     parser.add_argument("--estimate-only", action="store_true")
     parser.add_argument("--gate", action="store_true", help="exit 1 if the release gate fails")

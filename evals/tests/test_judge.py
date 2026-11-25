@@ -51,8 +51,8 @@ def test_verdict_schema_is_flat_and_closed() -> None:
     assert set(schema["required"]) == set(Verdict.model_fields)
 
 
-def test_judge_defaults_to_the_cheapest_model_and_prices_both() -> None:
-    assert DEFAULT_JUDGE_MODEL == "claude-haiku-5-5"
+def test_judge_defaults_to_opus_and_prices_both_models() -> None:
+    assert DEFAULT_JUDGE_MODEL == "claude-opus-5-5"
     assert judge_cost("claude-haiku-5-5", 1_000_000, 1_000_000) == pytest.approx(0.60)
     assert judge_cost("claude-opus-5-5", 1_000_000, 0) == pytest.approx(4.0)
     assert judge_cost("claude-opus-5-5", 0, 1_000_000) == pytest.approx(20.0)
@@ -113,7 +113,7 @@ class FakeClient:
 
 
 def _judge_with(response: Response) -> tuple[AnthropicJudge, FakeMessages]:
-    judge = AnthropicJudge(api_key="placeholder-never-used")  # default model: Haiku
+    judge = AnthropicJudge(api_key="placeholder-never-used")  # default model: Opus
     messages = FakeMessages(response)
     judge._client = FakeClient(messages)  # type: ignore[assignment]
     return judge, messages
@@ -134,9 +134,9 @@ def test_anthropic_judge_sends_rubric_schema_and_effort() -> None:
     judge, messages = _judge_with(Response([Block(json.dumps(VERDICT))]))
     judgement = judge.judge(ITEM)
     assert judgement.verdict == Verdict.model_validate(VERDICT)
-    assert judgement.cost_usd == pytest.approx(judge_cost("claude-haiku-5-5", 1000, 500))
+    assert judgement.cost_usd == pytest.approx(judge_cost("claude-opus-5-5", 1000, 500))
     call = messages.calls[0]
-    assert call["model"] == "claude-haiku-5-5"
+    assert call["model"] == "claude-opus-5-5"
     assert call["system"] == rubric()
     assert call["output_config"]["effort"] == "medium"
     assert call["output_config"]["format"]["type"] == "json_schema"

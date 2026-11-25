@@ -25,13 +25,13 @@ on:
         options: [anthropic, heuristic]
         default: anthropic
       judge_model:
-        description: Grading model (Haiku about $0.03 a run; Opus about $0.85, needs max_cost 2)
+        description: Grading model (Opus about $0.85 a run; Haiku about $0.03)
         type: choice
-        options: [claude-haiku-5-5, claude-opus-5-5]
-        default: claude-haiku-5-5
+        options: [claude-opus-5-5, claude-haiku-5-5]
+        default: claude-opus-5-5
       max_cost:
         description: Hard spending limit in USD
-        default: "0.25"
+        default: "2.5"
       update_baseline:
         description: Write the result as the new baseline (download it from the run's artifacts)
         type: boolean
@@ -49,8 +49,8 @@ concurrency:
 env:
   PROVIDER: ${{ inputs.provider || 'anthropic' }}
   JUDGE: ${{ inputs.judge || 'anthropic' }}
-  JUDGE_MODEL: ${{ inputs.judge_model || 'claude-haiku-5-5' }}
-  MAX_COST: ${{ inputs.max_cost || '0.25' }}
+  JUDGE_MODEL: ${{ inputs.judge_model || 'claude-opus-5-5' }}
+  MAX_COST: ${{ inputs.max_cost || '2.5' }}
   PROVENANCE_TEST_DATABASE_URL: postgresql://provenance:provenance-ci-only@localhost:5432/provenance_test
   FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.fastembed
 
