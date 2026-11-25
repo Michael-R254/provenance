@@ -1,0 +1,20 @@
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Provenance",
+  description: "An AI guide to Michael Rollinson's engineering work.",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html lang="en" className="h-full antialiased">
+      <body className="flex min-h-full flex-col">
+        <a href="#main" className="sr-only focus:not-sr-only focus:p-4">
+          Skip to content
+        </a>
+        {children}
+      </body>
+    </html>
+  );
+}
