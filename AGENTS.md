@@ -71,15 +71,18 @@ Keep this section accurate as the project grows. Every milestone must leave thes
 ```bash
 # web
 pnpm --dir apps/web install
-pnpm --dir apps/web lint && pnpm --dir apps/web typecheck && pnpm --dir apps/web test
+pnpm --dir apps/web lint && pnpm --dir apps/web typecheck && pnpm --dir apps/web format:check
+pnpm --dir apps/web test && pnpm --dir apps/web test:e2e   # e2e: Playwright + axe
 
 # api
-cd apps/api && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy . && uv run pytest
+cd apps/api && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 
-# ingestion and retrieval evaluation (local Postgres via docker compose)
+# local database (Postgres + pgvector)
 docker compose up -d db
-uv run --project ingest python -m ingest --content ../content --dry-run
-uv run --project evals python -m evals.retrieval
+
+# from M1 / M2 (not yet implemented)
+# uv run --project ingest python -m ingest --content content --dry-run
+# uv run --project evals python -m evals.retrieval
 ```
 
 ## How to work

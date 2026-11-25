@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web (lint, types, unit, e2e + axe)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+  api:
+    name: api (ruff, mypy, pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+
+  db:
+    name: db (pgvector available)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: provenance
+          POSTGRES_PASSWORD: provenance-ci-only
+          POSTGRES_DB: provenance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U provenance -d provenance"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      PGPASSWORD: provenance-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply init scripts
+        run: |
+          for f in db/init/*.sql; do
+            psql -h localhost -U provenance -d provenance -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Check the vector extension
+        run: |
+          psql -h localhost -U provenance -d provenance -tAc \
+            "select extname from pg_extension where extname = 'vector'" | grep -qx vector
