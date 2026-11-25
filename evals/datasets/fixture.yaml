@@ -1,0 +1,82 @@
+# Retrieval evaluation questions over the fictional corpus in evals/fixtures/content.
+# Every project here is invented. The real question set (datasets/questions.yaml) is written
+# with Michael against his approved content.
+#
+# Fields:
+#   id: unique, stable
+#   category: single_project | multi_project | recruiter | distinction | unanswerable | adversarial
+#   question: what a visitor types
+#   project: optional scope (as when asking from a project page)
+#   expected: chunks that should be retrieved, as "<source path>#<anchor>". Empty = no evidence.
+version: fixture-1
+questions:
+  - id: widget-how-sorted
+    category: single_project
+    question: How does the widget sorter decide which bin a widget goes to?
+    expected:
+      - projects/example-widget-sorter.md#architecture
+  - id: widget-lighting
+    category: single_project
+    question: What went wrong with lighting and how was it handled?
+    expected:
+      - projects/example-widget-sorter.md#challenges-and-decisions
+  - id: widget-contribution
+    category: single_project
+    question: Which parts of the widget sorter did the author build themselves?
+    expected:
+      - projects/example-widget-sorter.md#my-contributions
+  - id: rain-model
+    category: single_project
+    question: What kind of model does the rain forecaster use?
+    expected:
+      - projects/example-rain-forecaster.md#architecture
+      - projects/example-rain-forecaster.md#my-contributions
+  - id: rain-missing-data
+    category: single_project
+    question: How were offline sensors and gaps in the readings dealt with?
+    expected:
+      - projects/example-rain-forecaster.md#challenges-and-decisions
+  - id: chess-zobrist
+    category: single_project
+    question: Zobrist hashing transposition table
+    expected:
+      - projects/example-chess-engine.md#implementation-details
+      - projects/example-chess-engine.md#challenges-and-decisions
+  - id: chess-search
+    category: single_project
+    question: Which search algorithm does the chess engine use?
+    expected:
+      - projects/example-chess-engine.md#overview
+      - projects/example-chess-engine.md#implementation-details
+  - id: scoped-limitations
+    category: single_project
+    project: example-chess-engine
+    question: What would you do next?
+    expected:
+      - projects/example-chess-engine.md#limitations-and-what-i-would-do-next
+  - id: multi-next-steps
+    category: multi_project
+    question: What limitations did the widget sorter and the rain forecaster have?
+    expected:
+      - projects/example-widget-sorter.md#limitations-and-what-i-would-do-next
+      - projects/example-rain-forecaster.md#limitations-and-what-i-would-do-next
+  - id: multi-trade-offs
+    category: multi_project
+    question: Give examples of trade-offs and decisions made across projects
+    expected:
+      - projects/example-widget-sorter.md#challenges-and-decisions
+      - projects/example-rain-forecaster.md#challenges-and-decisions
+      - projects/example-chess-engine.md#challenges-and-decisions
+  - id: about-person
+    category: recruiter
+    question: Tell me about yourself
+    expected:
+      - profile.md#about
+  - id: unanswerable-kubernetes
+    category: unanswerable
+    question: Have you deployed Kubernetes clusters in production?
+    expected: []
+  - id: unanswerable-draft
+    category: unanswerable
+    question: Tell me about the recipe planner and its retrieval-augmented generation
+    expected: []

@@ -38,11 +38,25 @@ jobs:
       - run: pnpm test:e2e
 
   api:
-    name: api (ruff, mypy, pytest)
+    name: api (ruff, mypy, pytest with Postgres)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/api
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: provenance
+          POSTGRES_PASSWORD: provenance-ci-only
+          POSTGRES_DB: provenance_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U provenance -d provenance_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      PROVENANCE_TEST_DATABASE_URL: postgresql://provenance:provenance-ci-only@localhost:5432/provenance_test
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -83,6 +97,43 @@ jobs:
       - run: uv run pytest
       - name: Validate repository content
         run: uv run python -m ingest validate
+
+  evals:
+    name: evals (retrieval metrics vs baseline)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: evals
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: provenance
+          POSTGRES_PASSWORD: provenance-ci-only
+          POSTGRES_DB: provenance_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U provenance -d provenance_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      PROVENANCE_TEST_DATABASE_URL: postgresql://provenance:provenance-ci-only@localhost:5432/provenance_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+      - name: Retrieval evaluation (gated on the stored baseline)
+        run: uv run python -m evals.retrieval --reset-database --output retrieval-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retrieval-report
+          path: evals/retrieval-report.json
+          if-no-files-found: ignore
 
   db:
     name: db (pgvector available)
