@@ -1,0 +1,99 @@
+name: ingest
+
+# The only writer of the corpus tables (AGENTS.md rule 5). On a merge to main that changes content
+# or the ingestion code: build a new index version beside the live one, check it, score it, and
+# activate it only if every gate passes. If any gate fails the new version is marked failed and
+# visitors keep the previous one. Rollback: docs/runbook.md.
+#
+# Secret: NEON_INGEST_DATABASE_URL (Neon owner connection string).
+# Variable: DEPLOY_ENABLED must be "true".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "content/**"
+      - "ingest/**"
+      - "db/migrations/**"
+      - "evals/datasets/**"
+      - "evals/baselines/**"
+      - ".github/workflows/ingest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Shared with the deploy workflow's migration job.
+  group: production-database
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    env:
+      PROVENANCE_DATABASE_URL: ${{ secrets.NEON_INGEST_DATABASE_URL }}
+      FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.fastembed
+      QUESTIONS: evals/datasets/questions.yaml
+      BASELINE: evals/baselines/content-retrieval.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/cache@v4
+        with:
+          path: .fastembed
+          key: fastembed-bge-small-en-v1.5
+      - run: uv sync --locked --project ingest
+      - run: uv sync --locked --project evals
+
+      - name: Validate content
+        id: validate
+        run: |
+          uv run --project ingest python -m ingest validate | tee validate.txt
+          included=$(grep -Eo '^[0-9]+ file\(s\) included' validate.txt | grep -Eo '^[0-9]+')
+          echo "included=$included" >> "$GITHUB_OUTPUT"
+          if [ "$included" = "0" ]; then
+            echo "::notice::No approved content yet; nothing to index."
+          fi
+
+      - name: Apply migrations
+        if: steps.validate.outputs.included != '0'
+        run: uv run --project ingest python -m ingest migrate
+
+      - name: Build a new index version (not yet active)
+        id: build
+        if: steps.validate.outputs.included != '0'
+        run: |
+          uv run --project ingest python -m ingest run --version-file version.txt
+          echo "version=$(cat version.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: "Gate 1: the version holds exactly the approved content"
+        if: steps.build.outputs.version
+        run: uv run --project ingest python -m ingest check "${{ steps.build.outputs.version }}"
+
+      - name: "Gate 2: retrieval quality against the committed baseline"
+        if: steps.build.outputs.version
+        run: |
+          if [ ! -f "$QUESTIONS" ] || [ ! -f "$BASELINE" ]; then
+            echo "::warning::No $QUESTIONS or $BASELINE yet, so only the structural gate ran."
+            exit 0
+          fi
+          uv run --project evals python -m evals.retrieval \
+            --index-version "${{ steps.build.outputs.version }}" \
+            --database-url "$PROVENANCE_DATABASE_URL" \
+            --embedder fastembed --dataset "$QUESTIONS" --baseline "$BASELINE"
+
+      - name: Activate
+        if: steps.build.outputs.version
+        run: uv run --project ingest python -m ingest activate "${{ steps.build.outputs.version }}"
+
+      - name: Keep the previous version live
+        if: failure() && steps.build.outputs.version
+        run: |
+          uv run --project ingest python -m ingest mark-failed "${{ steps.build.outputs.version }}"
+          echo "::error::Index version ${{ steps.build.outputs.version }} failed a gate; the previous version is still live."
+
+      - name: Recent versions
+        if: always() && steps.validate.outputs.included != '0'
+        run: uv run --project ingest python -m ingest versions --limit 5
