@@ -93,6 +93,16 @@ def active_index(conn: psycopg.Connection) -> tuple[int, str]:
     return int(row[0]), str(row[1])
 
 
+def candidate_index(conn: psycopg.Connection, version: int) -> tuple[int, str]:
+    """A specific index version, for evaluating a new build before it is activated."""
+    row = conn.execute(
+        "SELECT id, embedding_model FROM index_versions WHERE id = %s", (version,)
+    ).fetchone()
+    if row is None:
+        raise NoActiveIndexError(f"index version {version} does not exist")
+    return int(row[0]), str(row[1])
+
+
 def vector_search(
     conn: psycopg.Connection,
     index_version: int,
@@ -196,11 +206,16 @@ class Retriever:
         top_n: int = 8,
         method: Method = "hybrid",
         project: str | None = None,
+        index_version: int | None = None,
     ) -> RetrievalResult:
+        """Search the active index. `index_version` is for offline evaluation only: the public
+        API never passes it, so visitors only ever see the active version."""
         timings: dict[str, float] = {}
         started = time.perf_counter()
 
-        version, model = active_index(conn)
+        version, model = (
+            active_index(conn) if index_version is None else candidate_index(conn, index_version)
+        )
         if model != self.embedder.model_name:
             raise EmbeddingModelMismatchError(
                 f"active index {version} uses {model!r}; queries use {self.embedder.model_name!r}"

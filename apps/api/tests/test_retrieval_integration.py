@@ -44,6 +44,18 @@ def test_only_the_active_version_is_searched(indexed: psycopg.Connection) -> Non
     assert all(c.project_slug != "example-old" for c in result.chunks)
 
 
+def test_a_named_version_can_be_evaluated_before_activation(db: psycopg.Connection) -> None:
+    active = add_version(db, "active")
+    add_document(db, active, "example-widgets", WIDGETS)
+    candidate = add_version(db, "building")
+    add_document(db, candidate, "example-weather", WEATHER)
+    retriever = Retriever(FakeEmbedder())
+    live = retriever.retrieve(db, "rainfall forecaster")
+    assert {c.project_slug for c in live.chunks} == {"example-widgets"}
+    preview = retriever.retrieve(db, "rainfall forecaster", index_version=candidate)
+    assert {c.project_slug for c in preview.chunks} == {"example-weather"}
+
+
 def test_keyword_search_matches_exact_terms(indexed: psycopg.Connection) -> None:
     result = Retriever(FakeEmbedder()).retrieve(indexed, "gradient boosting", method="keyword")
     assert [c.anchor for c in result.chunks] == ["architecture"]
