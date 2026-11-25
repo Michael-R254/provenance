@@ -1,25 +1,193 @@
 @import "tailwindcss";
 
-/* Placeholder tokens. The Field Console design system replaces these in M4. */
+/*
+ * Field Console design tokens. Paper light theme, deep-moss dark theme, one moss accent,
+ * amber for warnings only. The theme follows the system unless the visitor picks one, which
+ * sets data-theme on <html>.
+ */
 :root {
-  --background: #f6f4ef;
-  --foreground: #1c1b19;
+  color-scheme: light;
+  --paper: #f4f1e8;
+  --surface: #fbf9f3;
+  --ink: #1e211c;
+  --muted: #545b50;
+  --line: #d6d0c0;
+  --accent: #3d5a2a;
+  --accent-ink: #f8f6ef;
+  --accent-soft: #e2e8d4;
+  --warn: #7f5200;
+  --focus: #2f5fa8;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  --measure: 68ch;
+  --radius: 4px;
+  --duration: 160ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #111712;
+  --surface: #172019;
+  --ink: #e7e5dd;
+  --muted: #a5ad9d;
+  --line: #2e3a2f;
+  --accent: #a8c48a;
+  --accent-ink: #111712;
+  --accent-soft: #223024;
+  --warn: #e3ac52;
+  --focus: #8fb7ff;
 }
 
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #111712;
+    --surface: #172019;
+    --ink: #e7e5dd;
+    --muted: #a5ad9d;
+    --line: #2e3a2f;
+    --accent: #a8c48a;
+    --accent-ink: #111712;
+    --accent-soft: #223024;
+    --warn: #e3ac52;
+    --focus: #8fb7ff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
   :root {
-    --background: #121614;
-    --foreground: #e8e6e1;
+    --duration: 0ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --font-serif: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  scroll-padding-top: var(--space-16);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+
+/* Long-form project and profile text */
+.prose-field {
+  max-width: var(--measure);
+}
+.prose-field > * + * {
+  margin-top: var(--space-4);
+}
+.prose-field h2 {
+  font-family: var(--font-serif);
+  font-size: 1.6rem;
+  line-height: 1.25;
+  font-weight: 500;
+  margin-top: var(--space-12);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.prose-field h3 {
+  font-weight: 600;
+  margin-top: var(--space-8);
+}
+.prose-field .heading-link {
+  text-decoration: none;
+}
+.prose-field .heading-link:hover {
+  text-decoration: underline;
+}
+.prose-field a:not(.heading-link) {
+  text-decoration-line: underline;
+}
+.prose-field ul {
+  list-style: disc;
+  padding-left: var(--space-6);
+}
+.prose-field ol {
+  list-style: decimal;
+  padding-left: var(--space-6);
+}
+.prose-field code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--accent-soft);
+  padding: 0.1em 0.3em;
+  border-radius: var(--radius);
+}
+.prose-field pre {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: var(--space-4);
+  overflow-x: auto;
+}
+.prose-field pre code {
+  background: none;
+  padding: 0;
+}
+.prose-field table {
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.prose-field th,
+.prose-field td {
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+.prose-field blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: var(--space-4);
+  color: var(--muted);
 }
