@@ -1,0 +1,16 @@
+# Fictional fixture. Real starter answers are generated from the live pipeline and reviewed by
+# Michael before their status is set to approved.
+answers:
+  - id: overview
+    status: approved
+    answer: >-
+      The fixture corpus has a widget sorter that sorts imaginary widgets by colour [c1] and a
+      chess engine [c2].
+    citations:
+      c1: example-widget-sorter#overview
+      c2: example-chess-engine#overview
+  - id: stack
+    status: draft
+    answer: This draft answer must never be shown [c1].
+    citations:
+      c1: example-widget-sorter#overview

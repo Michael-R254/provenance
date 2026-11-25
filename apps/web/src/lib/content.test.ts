@@ -3,7 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { ContentError, loadProfile, loadProject, loadProjects } from "./content";
+import {
+  ContentError,
+  loadProfile,
+  loadProject,
+  loadProjects,
+  loadStarterAnswers,
+} from "./content";
+import { renderMarkdown } from "./markdown";
+
+const renderSections = (body: string, title: string) => renderMarkdown(body, title).sections;
 
 const FIXTURES = path.resolve(__dirname, "../../../../evals/fixtures/content");
 
@@ -60,5 +69,30 @@ describe("content loader", () => {
   it("handles an empty content folder", () => {
     expect(loadProjects(tempContent({}))).toEqual([]);
     expect(loadProfile(tempContent({}))).toBeUndefined();
+  });
+});
+
+describe("starter answers", () => {
+  const sections = (p: { body: string; title: string }) =>
+    // Import lazily to keep this file's other tests independent of the renderer.
+    renderSections(p.body, p.title);
+
+  it("returns approved answers with resolved citations and skips drafts", () => {
+    const answers = loadStarterAnswers(FIXTURES, sections);
+    expect(Object.keys(answers)).toEqual(["overview"]);
+    expect(answers.overview.citations.c1).toEqual({
+      href: "/projects/example-widget-sorter#overview",
+      title: "Example Widget Sorter",
+      section: "Overview",
+    });
+  });
+
+  it("fails the build when an approved answer cites a missing section", () => {
+    const dir = tempContent({
+      "projects/example-a.md": project("status: approved"),
+      "starters.yaml":
+        "answers:\n  - id: x\n    status: approved\n    answer: Claim [c1].\n    citations:\n      c1: example-a#nope\n",
+    });
+    expect(() => loadStarterAnswers(dir, sections)).toThrow(/not a published section/);
   });
 });

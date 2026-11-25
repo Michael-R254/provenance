@@ -156,3 +156,58 @@ export const TAG_LABELS: Record<TagField, string> = {
   models: "Models",
   research_areas: "Research areas",
 };
+
+/** A reviewed, pre-written answer to a starter question, served without a model call. */
+export type StarterAnswer = {
+  id: string;
+  answer: string;
+  citations: Record<string, { href: string; title: string; section: string }>;
+};
+
+/**
+ * Reads `starters.yaml`. Only entries with `status: approved` are returned, and every citation
+ * must point at a section that exists on a published project page, or the build fails.
+ */
+export function loadStarterAnswers(
+  dir: string = contentDir(),
+  sectionsOf: (project: Project) => { heading: string; anchor: string }[],
+): Record<string, StarterAnswer> {
+  const file = path.join(dir, "starters.yaml");
+  if (!fs.existsSync(file)) return {};
+  let data: unknown;
+  try {
+    data = parseYaml(fs.readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new ContentError(`${file}: invalid YAML (${(error as Error).message.split("\n")[0]})`);
+  }
+  const entries = (data as { answers?: unknown })?.answers;
+  if (!Array.isArray(entries)) throw new ContentError(`${file}: expected an answers list`);
+  const projects = new Map(loadProjects(dir).map((p) => [p.slug, p]));
+  const out: Record<string, StarterAnswer> = {};
+  for (const entry of entries as Record<string, unknown>[]) {
+    if (entry.status !== "approved") continue;
+    const id = String(entry.id ?? "");
+    const answer = String(entry.answer ?? "").trim();
+    const cites = (entry.citations ?? {}) as Record<string, string>;
+    if (!id || !answer) throw new ContentError(`${file}: approved answers need an id and answer`);
+    const citations: StarterAnswer["citations"] = {};
+    for (const marker of answer.matchAll(/\[(c\d{1,3})\]/g)) {
+      const target = cites[marker[1]];
+      const [slug, anchor] = (target ?? "").split("#");
+      const project = projects.get(slug);
+      const section = project && sectionsOf(project).find((s) => s.anchor === anchor);
+      if (!project || !section) {
+        throw new ContentError(
+          `${file}: ${id} cites ${marker[1]} -> ${target ?? "nothing"}, which is not a published section`,
+        );
+      }
+      citations[marker[1]] = {
+        href: `/projects/${slug}#${anchor}`,
+        title: project.title,
+        section: section.heading,
+      };
+    }
+    out[id] = { id, answer, citations };
+  }
+  return out;
+}
