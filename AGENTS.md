@@ -89,10 +89,21 @@ cd apps/api && uv run uvicorn provenance.main:app --reload
 cd ingest && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 uv run --project ingest python -m ingest validate
 uv run --project ingest python -m ingest run --dry-run
+# production index operations (owner URL in PROVENANCE_DATABASE_URL; normally run by workflows)
+uv run --project ingest python -m ingest versions
+uv run --project ingest python -m ingest check <id>        # does a built version match content/?
+uv run --project ingest python -m ingest activate <id>     # also the rollback command
 
 # retrieval evaluation (wipes the target database; uses PROVENANCE_TEST_DATABASE_URL)
 cd evals && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 uv run --project evals python -m evals.retrieval --reset-database
+# score a built, not yet active version in place (read only; the ingest workflow's gate)
+uv run --project evals python -m evals.retrieval --index-version <id> --database-url <url> \
+  --embedder fastembed --dataset evals/datasets/questions.yaml --baseline evals/baselines/content-retrieval.json
+
+# api container and usage report
+docker build -t provenance-api apps/api
+uv run --project apps/api python -m provenance.report --days 7   # needs PROVENANCE_DATABASE_URL
 ```
 
 ## How to work

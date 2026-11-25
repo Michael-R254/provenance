@@ -172,7 +172,12 @@ Layered, in order of what stops spend:
 
 | Workflow | Trigger | Does |
 | --- | --- | --- |
-| `ci` | pull request | lint, types, unit and integration tests, Playwright + axe, Lighthouse CI, content validation, retrieval evaluation on a throwaway index |
+| `ci` | pull request | lint, types, unit and integration tests, Playwright + axe, Lighthouse CI, content validation, retrieval evaluation on a throwaway index, API image build |
 | `eval-generation` | manual or `run-evals` label | full generation evaluation; comments a summary on the pull request |
-| `deploy` | merge to `main` | Vercel deploy, Cloud Run deploy, migrations |
-| `ingest` | merge to `main` touching `content/` or `ingest/` | new index version, evaluation gate, activate or keep previous |
+| `deploy` | merge to `main` | migrations, then Cloud Run deploy with a `/health` smoke test, then Vercel deploy |
+| `ingest` | merge to `main` touching `content/` or `ingest/` | new index version, structural check and retrieval gate on that version, activate or mark failed and keep previous |
+| `rollback-index` | manual | list versions, or activate an earlier one |
+
+Production jobs run only when the repository variable `DEPLOY_ENABLED` is `true`. Migrations,
+ingest and rollback share one concurrency group. Secrets, roles and budget alerts: README
+"Deployment". Operations: [`docs/runbook.md`](runbook.md). Rationale: ADR 0007.
