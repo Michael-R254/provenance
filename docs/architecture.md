@@ -57,6 +57,7 @@ Homelab: development only (Ollama + Gemma), never serves public traffic
 2. Validate frontmatter against the schema; **reject anything not `status: approved`**.
 3. Chunk by `##` section; split long sections on paragraph boundaries with a small overlap. Each
    chunk keeps `project_slug`, `section`, `anchor` (matches the page's heading id), `ordinal`.
+   Exact rules: `docs/decisions/0002-chunking-and-anchors.md`.
 4. Embed with `BAAI/bge-small-en-v1.5` via `fastembed` (384 dims). Normalise vectors.
 5. Write a new `index_versions` row (`status = building`) and its documents, chunks and graph rows.
 6. Run the retrieval evaluation against the new version. If it passes the gate, set it `active`
@@ -85,9 +86,9 @@ Homelab: development only (Ollama + Gemma), never serves public traffic
 
 | Table | Key columns |
 | --- | --- |
-| `index_versions` | `id`, `git_sha`, `embedding_model`, `chunker_version`, `status` (building, active, retired), `created_at` |
-| `projects` | `slug`, `title`, `summary`, `type`, `period`, `repo_url`, `guardrails jsonb`, `index_version` |
-| `documents` | `id`, `project_slug`, `title`, `doc_type`, `source_path`, `url`, `version`, `content_hash`, `index_version` |
+| `index_versions` | `id`, `git_sha`, `embedding_model`, `chunker_version`, `status` (building, active, retired, failed), `created_at`, `activated_at` |
+| `projects` | `slug`, `title`, `summary`, `type`, `period`, `repo_url`, `tags jsonb`, `guardrails jsonb`, `index_version` |
+| `documents` | `id`, `project_slug`, `title`, `doc_type` (project, profile), `source_path`, `url`, `version`, `content_hash`, `index_version` |
 | `chunks` | `id`, `document_id`, `section`, `anchor`, `ordinal`, `text`, `token_count`, `embedding vector(384)`, `tsv tsvector` (generated), `index_version` |
 | `entities` | `id`, `kind` (project, skill, language, framework, model, research_area), `label`, `index_version` |
 | `entity_links` | `source_id`, `target_id`, `relation`, `evidence_chunk_id` |
