@@ -101,6 +101,10 @@ uv run --project evals python -m evals.retrieval --reset-database
 uv run --project evals python -m evals.retrieval --index-version <id> --database-url <url> \
   --embedder fastembed --dataset evals/datasets/questions.yaml --baseline evals/baselines/content-retrieval.json
 
+# generation evaluation (free by default; a paid run prints its estimate and needs --yes)
+uv run --project evals python -m evals.generation --reset-database
+uv run --project evals python -m evals.generation --reset-database --provider anthropic --judge anthropic
+
 # api container and usage report
 docker build -t provenance-api apps/api
 uv run --project apps/api python -m provenance.report --days 7   # needs PROVENANCE_DATABASE_URL

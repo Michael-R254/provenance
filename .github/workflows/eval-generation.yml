@@ -1,0 +1,148 @@
+name: eval-generation
+
+# The generation evaluation (docs/architecture.md section 8). It never runs on its own: start it
+# from the Actions tab, or add the `run-evals` label to a pull request.
+#
+# 1. "estimate" is free: it indexes the fixture corpus, dry-runs every question with the mock
+#    model, checks recruiter mode, and prints the estimated cost.
+# 2. "evaluate" calls paid models. It uses the `paid-evals` environment, which must list Michael
+#    as a required reviewer, so nothing is spent until he has read the estimate and approved.
+#
+# Secret (in the paid-evals environment): EVALS_ANTHROPIC_API_KEY, a key with a small prepaid
+# balance, kept separate from the production key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Model that writes the answers
+        type: choice
+        options: [anthropic, mock]
+        default: anthropic
+      judge:
+        description: Grader
+        type: choice
+        options: [anthropic, heuristic]
+        default: anthropic
+      judge_model:
+        description: Grading model (Opus about $0.85 a run; Haiku about $0.03)
+        type: choice
+        options: [claude-opus-5-5, claude-haiku-5-5]
+        default: claude-opus-5-5
+      max_cost:
+        description: Hard spending limit in USD
+        default: "2.5"
+      update_baseline:
+        description: Write the result as the new baseline (download it from the run's artifacts)
+        type: boolean
+        default: false
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-generation-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROVIDER: ${{ inputs.provider || 'anthropic' }}
+  JUDGE: ${{ inputs.judge || 'anthropic' }}
+  JUDGE_MODEL: ${{ inputs.judge_model || 'claude-opus-5-5' }}
+  MAX_COST: ${{ inputs.max_cost || '2.5' }}
+  PROVENANCE_TEST_DATABASE_URL: postgresql://provenance:provenance-ci-only@localhost:5432/provenance_test
+  FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.fastembed
+
+jobs:
+  estimate:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-evals'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: provenance
+          POSTGRES_PASSWORD: provenance-ci-only
+          POSTGRES_DB: provenance_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U provenance -d provenance_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/cache@v4
+        with:
+          path: .fastembed
+          key: fastembed-bge-small-en-v1.5
+      - run: uv sync --locked --project evals
+      - name: Estimate (free)
+        run: |
+          uv run --project evals python -m evals.generation --reset-database \
+            --provider "$PROVIDER" --judge "$JUDGE" --judge-model "$JUDGE_MODEL" \
+            --max-cost "$MAX_COST" --estimate-only \
+            | tee estimate.txt
+          { echo '### Estimated cost'; echo '```'; cat estimate.txt; echo '```';
+            echo 'Approve the `evaluate` job to spend up to this amount.'; } >> "$GITHUB_STEP_SUMMARY"
+
+  evaluate:
+    needs: estimate
+    runs-on: ubuntu-latest
+    environment: paid-evals
+    permissions:
+      contents: read
+      pull-requests: write
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: provenance
+          POSTGRES_PASSWORD: provenance-ci-only
+          POSTGRES_DB: provenance_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U provenance -d provenance_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.EVALS_ANTHROPIC_API_KEY }}
+      BASELINE_FLAG: ${{ inputs.update_baseline && '--update-baseline' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/cache@v4
+        with:
+          path: .fastembed
+          key: fastembed-bge-small-en-v1.5
+      - run: uv sync --locked --project evals
+      - name: Evaluate (paid, capped at MAX_COST)
+        run: |
+          set -o pipefail
+          uv run --project evals python -m evals.generation --reset-database \
+            --provider "$PROVIDER" --judge "$JUDGE" --judge-model "$JUDGE_MODEL" \
+            --max-cost "$MAX_COST" --yes --gate \
+            --output generation-report.json $BASELINE_FLAG 2>&1 | tee generation.txt
+      - name: Summary
+        if: always()
+        run: |
+          [ -f generation.txt ] || exit 0
+          { echo '### Generation evaluation'; echo '```'; tail -n 40 generation.txt; echo '```'; } \
+            | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment on the pull request
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f summary.md ] && gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" --body-file summary.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generation-report
+          path: |
+            generation-report.json
+            generation.txt
+            evals/baselines/fixture-generation-*.json
+          if-no-files-found: ignore

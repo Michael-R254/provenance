@@ -10,6 +10,8 @@ summary: A fictional service that forecasts imaginary rainfall. Used only for ev
 skills: [time series forecasting]
 languages: [Python, SQL]
 frameworks: [ExampleBoost]
+guardrails:
+  - "The forecast comes from a gradient boosting regressor, not a neural network or deep learning model."
 ---
 
 ## Overview
