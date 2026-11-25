@@ -32,6 +32,9 @@ through a pull request, with an ADR in `docs/decisions/` for significant changes
 
 On every page: command palette, chat panel, recruiter mode, theme toggle.
 
+Pages are built from approved files in `content/` only, with a post-build check that no draft
+id or title appears in the output. Section ids match ingestion anchors. See ADR 0005.
+
 ## 3. Components and hosting
 
 ```text
