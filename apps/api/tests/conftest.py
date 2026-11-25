@@ -62,3 +62,15 @@ def add_document(
                 _vector(f"{section} {text}"),
             ),
         )
+
+
+def add_project(
+    conn: psycopg.Connection, version: int, slug: str, guardrails: list[str] | None = None
+) -> None:
+    import json
+
+    conn.execute(
+        "INSERT INTO projects (index_version, slug, title, summary, type, guardrails)"
+        " VALUES (%s, %s, %s, 'A fictional project.', 'personal', %s)",
+        (version, slug, slug.replace("-", " ").title(), json.dumps(guardrails or [])),
+    )

@@ -67,12 +67,13 @@ Homelab: development only (Ollama + Gemma), never serves public traffic
 
 1. **Input:** question, `session_id`, last few turns, optional `project` scope. Role is NOT sent.
 2. **Guard:** Turnstile-verified session token, rate limits, max question length, daily spend cap.
-3. **Rewrite follow-ups** into a standalone query when history is present (cheap LLM call, or a
-   rule-based fallback when the cap is near).
+3. **Rewrite follow-ups** into a standalone query when history is present (rule-based: short or
+   pronoun-led questions are joined to the previous question; no model call. See ADR 0004).
 4. **Hybrid retrieve** from the active index: pgvector cosine top-k and full-text top-k (any
    query term may match; `ts_rank_cd` orders), optional project filter. See ADR 0003.
 5. **Fuse** with reciprocal rank fusion (k = 60 as a starting point; tune from evaluation).
-6. **Evidence threshold:** if the evidence is too weak (threshold set from evaluation data), return a
+6. **Evidence threshold:** if the best vector similarity is below `evidence_min_similarity`
+   (placeholder 0.35, to be set from evaluation data with the real embedder), return a
    "no evidence" answer that suggests supported related topics. No generation call.
 7. **Assemble context:** top chunks with stable IDs like `[c3]`, plus `guardrails` for each project
    represented.
@@ -113,6 +114,24 @@ Privacy: visitor questions are stored; IP addresses are never stored, only salte
 | `GET /health` | 1 | Readiness; wakes API and database |
 
 CORS allows only the site's own origins. Errors to visitors are generic; details go to logs.
+
+**`POST /v1/session`** takes `{"turnstile_token"}` and returns `{"session_token", "expires_at"}`
+(HMAC-signed, one hour). Errors: 403 `verification_failed`, 429 `rate_limited` (per IP hash).
+
+**`POST /v1/chat`** takes `{"question", "history": [{"question", "answer"}], "project"}` with a
+`Authorization: Bearer <session_token>` header. Unknown fields (including `role`) are rejected
+with 422. The response is always `text/event-stream`:
+
+| Event | Data |
+| --- | --- |
+| `retrieval` | `method`, `index_version`, `timings_ms`, `chunks` (`id` like `c1`, `chunk_id`, title, section, url, scores) |
+| `token` | `text` (citation markers like `[c1]` inline; unknown IDs already removed) |
+| `citations` | `used` (id, chunk_id, title, section, url), `removed` (unknown IDs), `unsupported` (sentences without a citation) |
+| `done` | `status`: `answered`, `no_evidence` (with `suggestions`) or `refused` |
+| `error` | `code` and a visitor-safe `message`. Codes: `invalid_session` (401), `input_too_long` (422), `rate_limited` (429), `spend_cap` (503, or mid-stream before generation), `unavailable` |
+
+Prompt text lives in `apps/api/src/provenance/prompts/answer-v1.md` and is never returned. The
+OpenAPI schema is disabled in production. See ADR 0004.
 
 ## 7. Cost and abuse controls
 

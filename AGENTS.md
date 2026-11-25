@@ -74,11 +74,14 @@ pnpm --dir apps/web install
 pnpm --dir apps/web lint && pnpm --dir apps/web typecheck && pnpm --dir apps/web format:check
 pnpm --dir apps/web test && pnpm --dir apps/web test:e2e   # e2e: Playwright + axe
 
-# api
+# api (integration tests need PROVENANCE_TEST_DATABASE_URL; all tests use MockProvider)
 cd apps/api && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 
 # local database (Postgres + pgvector)
 docker compose up -d db
+
+# run the API locally (mock model by default; set PROVENANCE_LLM_PROVIDER=ollama for a local model)
+cd apps/api && uv run uvicorn provenance.main:app --reload
 
 # ingestion (integration tests need PROVENANCE_TEST_DATABASE_URL pointing at a throwaway database)
 cd ingest && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
