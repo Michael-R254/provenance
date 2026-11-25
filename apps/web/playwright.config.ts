@@ -26,5 +26,7 @@ export default defineConfig({
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
+    // End-to-end tests always run against the fictional fixture corpus, never real content.
+    env: { PROVENANCE_CONTENT_DIR: "../../evals/fixtures/content" },
   },
 });
