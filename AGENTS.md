@@ -80,8 +80,12 @@ cd apps/api && uv sync && uv run ruff check . && uv run ruff format --check . &&
 # local database (Postgres + pgvector)
 docker compose up -d db
 
-# from M1 / M2 (not yet implemented)
-# uv run --project ingest python -m ingest --content content --dry-run
+# ingestion (integration tests need PROVENANCE_TEST_DATABASE_URL pointing at a throwaway database)
+cd ingest && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
+uv run --project ingest python -m ingest validate
+uv run --project ingest python -m ingest run --dry-run
+
+# from M2 (not yet implemented)
 # uv run --project evals python -m evals.retrieval
 ```
 
