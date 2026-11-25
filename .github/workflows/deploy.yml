@@ -10,7 +10,7 @@ name: deploy
 # Variables (same page, Variables tab; not secret):
 #   DEPLOY_ENABLED, GCP_PROJECT_ID, GCP_REGION, GCP_WORKLOAD_IDENTITY_PROVIDER,
 #   GCP_DEPLOY_SERVICE_ACCOUNT, GCP_RUNTIME_SERVICE_ACCOUNT, PRODUCTION_ORIGINS,
-#   VERCEL_ORG_ID, VERCEL_PROJECT_ID
+#   DAILY_SPEND_CAP_USD (optional), VERCEL_ORG_ID, VERCEL_PROJECT_ID
 # Runtime secrets for the API live in Google Secret Manager, never here.
 
 on:
@@ -69,6 +69,7 @@ jobs:
       - name: Write the non-secret runtime settings
         env:
           ORIGINS: ${{ vars.PRODUCTION_ORIGINS }}
+          SPEND_CAP: ${{ vars.DAILY_SPEND_CAP_USD }}
         run: |
           python3 - <<'PY'
           import json, os
@@ -77,6 +78,8 @@ jobs:
               "PROVENANCE_ENVIRONMENT": "production",
               "PROVENANCE_LLM_PROVIDER": "anthropic",
               "PROVENANCE_ALLOWED_ORIGINS": json.dumps(origins),
+              # 0 pauses chat (docs/runbook.md); unset means the code default of $1 a day
+              "PROVENANCE_DAILY_SPEND_CAP_USD": os.environ.get("SPEND_CAP") or "1.0",
           }
           with open("runtime-env.yaml", "w", encoding="utf-8") as f:
               for key, value in settings.items():
@@ -85,8 +88,8 @@ jobs:
           cat runtime-env.yaml
       - name: Deploy
         # Scale to zero, at most two instances (docs/architecture.md sections 3 and 7).
-        # Cost settings such as PROVENANCE_DAILY_SPEND_CAP_USD keep their code defaults unless
-        # set on the service; see docs/runbook.md for changing them without a deploy.
+        # --env-vars-file replaces every plain variable on each deploy, so settings live in the
+        # repository variables above, not in manual edits to the service.
         run: |
           gcloud run deploy "$SERVICE" \
             --project "${{ vars.GCP_PROJECT_ID }}" \
