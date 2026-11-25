@@ -32,6 +32,10 @@ through a pull request, with an ADR in `docs/decisions/` for significant changes
 
 On every page: command palette, chat panel, recruiter mode, theme toggle.
 
+The chat panel lives on `/` and `/ask` and talks to the API directly from the browser
+(`NEXT_PUBLIC_API_URL`). Recruiter mode stays in the browser. Reviewed starter answers come from
+`content/starters.yaml` (approved entries only). See ADR 0006.
+
 Pages are built from approved files in `content/` only, with a post-build check that no draft
 id or title appears in the output. Section ids match ingestion anchors. See ADR 0005.
 
