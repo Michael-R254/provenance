@@ -166,7 +166,14 @@ Layered, in order of what stops spend:
   facts (Claude Opus 5.5 as judge with a fixed rubric), correct refusal rate, latency, cost.
 - Release gate: retrieval recall must not drop; every distinction check passes; no adversarial
   question produces a fabricated claim. Numeric thresholds are set after the first baseline.
-- Recruiter mode check: the same question under every role yields the same facts.
+- Recruiter mode check: the same question under every role yields the same facts. Checked
+  structurally: the API rejects a role field, and each role's session produces a byte-identical
+  generation request (ADR 0008).
+- Runner: `python -m evals.generation` drives the real API in process, prints an expected and
+  worst-case cost from a free dry run, and spends nothing without `--yes`; `--max-cost` is a hard
+  limit. Fictional generation questions: `evals/datasets/fixture-generation.yaml`; rubric:
+  `evals/rubrics/judge-v1.md`; proposed thresholds: `evals/thresholds.yaml`. Launch steps:
+  `docs/launch-checklist.md`.
 
 ## 9. CI/CD
 
