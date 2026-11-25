@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { useRole } from "./chat/use-role";
+import { orderForRole } from "@/lib/recruiter";
+
 export type ProjectRow = {
   slug: string;
   title: string;
@@ -16,14 +19,15 @@ export type ProjectRow = {
 export function ProjectIndex({ rows, types }: { rows: ProjectRow[]; types: string[] }) {
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
+  const [role] = useRole();
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    return rows.filter((row) => {
+    return orderForRole(rows, role).filter((row) => {
       if (type && row.type !== type) return false;
       const text = `${row.title} ${row.summary} ${row.tags.join(" ")}`.toLowerCase();
       return words.every((w) => text.includes(w));
     });
-  }, [rows, query, type]);
+  }, [rows, query, type, role]);
 
   return (
     <>

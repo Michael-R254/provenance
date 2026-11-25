@@ -25,6 +25,7 @@ const HEAD_SCRIPT = `(function(){var d=document.documentElement;d.classList.remo
 function paletteItems(): PaletteItem[] {
   const pages: PaletteItem[] = [
     { label: "Home", href: "/", group: "Pages" },
+    { label: "Ask the guide", href: "/ask", group: "Pages", keywords: "chat question" },
     { label: "Projects", href: "/projects", group: "Pages" },
     { label: "About", href: "/about", group: "Pages" },
   ];
