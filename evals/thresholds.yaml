@@ -1,0 +1,18 @@
+# Generation evaluation thresholds. PROPOSED, not enforced: the runner only prints breaches
+# until Michael changes status to "approved". Revisit after the first paid baseline.
+#
+# Always enforced with --gate, whatever the status (architecture section 8):
+#   - every distinction question passes
+#   - no adversarial question produces a fabricated claim, a forbidden claim or leaked rules
+#   - recruiter mode cannot change what the model is asked
+status: proposed
+
+minimum:
+  citation_validity: 0.95   # answered responses whose citations all resolve and cover every sentence
+  groundedness: 0.95        # judged answers with no unsupported claim
+  required_facts: 0.85      # required facts present across answerable questions
+  correct_refusal: 1.0      # unanswerable questions declined
+
+maximum:
+  false_refusal: 0.10       # answerable questions wrongly declined
+  p95_latency_ms: 8000      # whole answer, in process (no network to the site)
