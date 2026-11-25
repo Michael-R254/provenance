@@ -1,0 +1,20 @@
+{
+  "_comment": "Shared by ingest (Python) and apps/web (TypeScript). Each case: the document title, then its ## headings in order, and the anchors both must produce (title first).",
+  "cases": [
+    {
+      "title": "Example Project A",
+      "headings": ["Overview", "My contributions", "Results", "Results", "Results"],
+      "anchors": ["example-project-a", "overview", "my-contributions", "results", "results-1", "results-2"]
+    },
+    {
+      "title": "Example Project B",
+      "headings": ["Links & media", "  C++ / CUDA  ", "Limitations and what I would do next", "Example Project B"],
+      "anchors": ["example-project-b", "links--media", "c--cuda", "limitations-and-what-i-would-do-next", "example-project-b-1"]
+    },
+    {
+      "title": "Café Ünïcode",
+      "headings": ["Résumé notes", "snake_case_name", "Step 1: setup!"],
+      "anchors": ["café-ünïcode", "résumé-notes", "snake_case_name", "step-1-setup"]
+    }
+  ]
+}
