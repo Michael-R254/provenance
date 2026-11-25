@@ -1,0 +1,22 @@
+{
+  "dataset": "fixture-1",
+  "k": 5,
+  "embedder": "fake",
+  "methods": {
+    "hybrid": {
+      "recall_at_k": 0.8636,
+      "hit_at_k": 0.9091,
+      "mrr": 0.7576
+    },
+    "vector": {
+      "recall_at_k": 0.8636,
+      "hit_at_k": 0.9091,
+      "mrr": 0.7576
+    },
+    "keyword": {
+      "recall_at_k": 0.697,
+      "hit_at_k": 0.8182,
+      "mrr": 0.5939
+    }
+  }
+}

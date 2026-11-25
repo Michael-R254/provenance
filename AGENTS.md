@@ -85,8 +85,9 @@ cd ingest && uv sync && uv run ruff check . && uv run ruff format --check . && u
 uv run --project ingest python -m ingest validate
 uv run --project ingest python -m ingest run --dry-run
 
-# from M2 (not yet implemented)
-# uv run --project evals python -m evals.retrieval
+# retrieval evaluation (wipes the target database; uses PROVENANCE_TEST_DATABASE_URL)
+cd evals && uv sync && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
+uv run --project evals python -m evals.retrieval --reset-database
 ```
 
 ## How to work

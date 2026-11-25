@@ -69,8 +69,8 @@ Homelab: development only (Ollama + Gemma), never serves public traffic
 2. **Guard:** Turnstile-verified session token, rate limits, max question length, daily spend cap.
 3. **Rewrite follow-ups** into a standalone query when history is present (cheap LLM call, or a
    rule-based fallback when the cap is near).
-4. **Hybrid retrieve** from the active index: pgvector cosine top-k and full-text (`websearch_to_tsquery`)
-   top-k, optional project filter.
+4. **Hybrid retrieve** from the active index: pgvector cosine top-k and full-text top-k (any
+   query term may match; `ts_rank_cd` orders), optional project filter. See ADR 0003.
 5. **Fuse** with reciprocal rank fusion (k = 60 as a starting point; tune from evaluation).
 6. **Evidence threshold:** if the evidence is too weak (threshold set from evaluation data), return a
    "no evidence" answer that suggests supported related topics. No generation call.
@@ -129,11 +129,13 @@ Layered, in order of what stops spend:
 
 ## 8. Evaluation
 
-- `evals/questions.yaml`: categories single-project factual (15), multi-project (8), recruiter
+- `evals/datasets/questions.yaml`: categories single-project factual (15), multi-project (8), recruiter
   open-ended (8), distinction checks (4), unanswerable (8), adversarial and injection (7). Each
   question lists expected chunk anchors and must-contain / must-not-contain facts. Questions are
   written with Michael; never generated from the system's own answers.
-- Retrieval metrics on every pull request: recall@k, MRR, per method (hybrid, vector, keyword).
+- Retrieval metrics on every pull request: recall@k, hit@k, MRR, per method (hybrid, vector,
+  keyword), over the fictional fixture corpus in `evals/fixtures/` (`evals/datasets/fixture.yaml`).
+  CI fails if hybrid recall@k or MRR drops below `evals/baselines/fixture-retrieval.json`.
 - Generation metrics on demand and before release: citation validity, groundedness and required
   facts (Claude Opus 5.5 as judge with a fixed rubric), correct refusal rate, latency, cost.
 - Release gate: retrieval recall must not drop; every distinction check passes; no adversarial
