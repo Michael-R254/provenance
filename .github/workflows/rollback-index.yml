@@ -1,0 +1,38 @@
+name: rollback-index
+
+# Switch the live index to an earlier version, without a laptop needing the database password.
+# Find the version id in the "Recent versions" step of any ingest run (or run with "list").
+# See docs/runbook.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Index version id to make active, or "list" to show recent versions
+        required: true
+        default: list
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    env:
+      PROVENANCE_DATABASE_URL: ${{ secrets.NEON_INGEST_DATABASE_URL }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked --project ingest
+      - name: Activate the chosen version
+        if: inputs.version != 'list'
+        run: |
+          case "$VERSION" in (*[!0-9]*|'') echo "::error::version must be a number"; exit 1;; esac
+          uv run --project ingest python -m ingest activate "$VERSION"
+      - name: Recent versions
+        run: uv run --project ingest python -m ingest versions --limit 10

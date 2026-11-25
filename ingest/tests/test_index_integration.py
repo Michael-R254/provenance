@@ -4,7 +4,7 @@ import psycopg
 import pytest
 
 from ingest.embed import FakeEmbedder
-from ingest.index import activate, active_version, build_index, mark_failed
+from ingest.index import activate, active_version, build_index, check_version, mark_failed
 from ingest.validate import prepare
 
 pytestmark = pytest.mark.integration
@@ -104,3 +104,30 @@ def test_only_one_version_can_be_active(db: psycopg.Connection) -> None:
             "INSERT INTO index_versions (embedding_model, chunker_version, status)"
             " VALUES ('m', '1', 'active')"
         )
+
+
+def test_check_accepts_a_complete_build(db: psycopg.Connection, fixture_content: Path) -> None:
+    documents = prepare(fixture_content).documents
+    version = build_index(db, documents, FakeEmbedder())
+    assert check_version(db, version, documents, FakeEmbedder.model_name) == []
+
+
+def test_check_reports_missing_documents_and_wrong_model(
+    db: psycopg.Connection, fixture_content: Path
+) -> None:
+    documents = prepare(fixture_content).documents
+    version = build_index(db, documents[:1], FakeEmbedder())
+    problems = check_version(db, version, documents, "another-model")
+    assert any("expected 'another-model'" in p for p in problems)
+    assert any(p.startswith("missing document") for p in problems)
+
+
+def test_check_refuses_a_version_that_is_already_live(
+    db: psycopg.Connection, fixture_content: Path
+) -> None:
+    documents = prepare(fixture_content).documents
+    version = build_index(db, documents, FakeEmbedder())
+    activate(db, version)
+    assert check_version(db, version, documents, FakeEmbedder.model_name) == [
+        "status is active, expected building"
+    ]

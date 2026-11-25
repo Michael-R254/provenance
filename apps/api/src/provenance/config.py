@@ -1,5 +1,6 @@
 """Application settings, read from environment variables (see .env.example)."""
 
+import re
 from functools import lru_cache
 from typing import Literal, Self
 
@@ -61,9 +62,17 @@ class Settings(BaseSettings):
             problems.append("ip_hash_salt must be set")
         if self.database_url is None:
             problems.append("database_url is required")
+        if not self.allowed_origins or not all(_is_public_origin(o) for o in self.allowed_origins):
+            problems.append("allowed_origins must list only https origins, without wildcards")
         if problems:
             raise ValueError("unsafe production settings: " + "; ".join(problems))
         return self
+
+
+def _is_public_origin(origin: str) -> bool:
+    """An exact https origin (scheme and host, no path) that is not localhost or a wildcard."""
+    match = re.fullmatch(r"https://([a-z0-9.-]+)(:\d+)?", origin)
+    return match is not None and match.group(1) not in ("localhost", "127.0.0.1")
 
 
 @lru_cache

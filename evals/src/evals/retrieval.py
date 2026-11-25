@@ -4,6 +4,11 @@ retrieval method, and report recall@k, hit@k and MRR. Optionally compare with a 
     python -m evals.retrieval --reset-database            # fixture corpus, fake embedder
     python -m evals.retrieval --reset-database --embedder fastembed
     python -m evals.retrieval --reset-database --update-baseline
+
+    # score an index version that is built but not yet active (the ingest workflow's gate);
+    # read only, nothing is wiped
+    python -m evals.retrieval --index-version 12 --database-url ... --embedder fastembed \
+        --dataset datasets/questions.yaml --baseline baselines/content-retrieval.json
 """
 
 import argparse
@@ -59,13 +64,24 @@ def reset_and_index(conn: psycopg.Connection, content: Path, embedders: Embedder
 
 
 def evaluate(
-    conn: psycopg.Connection, dataset: Dataset, retriever: Retriever, k: int
+    conn: psycopg.Connection,
+    dataset: Dataset,
+    retriever: Retriever,
+    k: int,
+    index_version: int | None = None,
 ) -> dict[str, Any]:
     report: dict[str, Any] = {"dataset": dataset.version, "k": k, "methods": {}}
     for method in METHODS:
         per_question = []
         for q in dataset.questions:
-            result = retriever.retrieve(conn, q.question, top_n=k, method=method, project=q.project)
+            result = retriever.retrieve(
+                conn,
+                q.question,
+                top_n=k,
+                method=method,
+                project=q.project,
+                index_version=index_version,
+            )
             ranked = [f"{c.source_path}#{c.anchor}" for c in result.chunks]
             row: dict[str, Any] = {"id": q.id, "category": q.category, "retrieved": ranked}
             if q.answerable:
@@ -145,23 +161,37 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="required: wipes the target database's public schema before indexing",
     )
+    parser.add_argument(
+        "--index-version",
+        type=int,
+        help="score this existing version in place (read only) instead of building a fresh index",
+    )
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--no-baseline", action="store_true", help="skip the baseline gate")
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--output", type=Path, help="write the full JSON report here")
     args = parser.parse_args(argv)
 
-    url = args.database_url or os.environ.get("PROVENANCE_TEST_DATABASE_URL")
-    if not url:
-        sys.exit("error: set PROVENANCE_TEST_DATABASE_URL or pass --database-url")
-    if not args.reset_database:
-        sys.exit("error: pass --reset-database to confirm the target database may be wiped")
-
     dataset = load_dataset(args.dataset)
-    embedders = make_embedders(args.embedder)
-    with psycopg.connect(url, autocommit=True) as conn:
-        reset_and_index(conn, args.content, embedders)
-        report = evaluate(conn, dataset, Retriever(embedders.query), args.k)
+    if args.index_version is not None:
+        if args.reset_database or args.update_baseline:
+            sys.exit("error: --index-version is read only; drop --reset-database/--update-baseline")
+        if not args.database_url:
+            sys.exit("error: --index-version needs an explicit --database-url")
+        embedders = make_embedders(args.embedder)
+        with psycopg.connect(args.database_url) as conn:
+            conn.read_only = True
+            report = evaluate(conn, dataset, Retriever(embedders.query), args.k, args.index_version)
+    else:
+        url = args.database_url or os.environ.get("PROVENANCE_TEST_DATABASE_URL")
+        if not url:
+            sys.exit("error: set PROVENANCE_TEST_DATABASE_URL or pass --database-url")
+        if not args.reset_database:
+            sys.exit("error: pass --reset-database to confirm the target database may be wiped")
+        embedders = make_embedders(args.embedder)
+        with psycopg.connect(url, autocommit=True) as conn:
+            reset_and_index(conn, args.content, embedders)
+            report = evaluate(conn, dataset, Retriever(embedders.query), args.k)
 
     print(format_table(report))
     if args.output:
