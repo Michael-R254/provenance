@@ -121,3 +121,66 @@ def mark_failed(conn: psycopg.Connection, version_id: int) -> None:
 def active_version(conn: psycopg.Connection) -> int | None:
     row = conn.execute("SELECT id FROM index_versions WHERE status = 'active'").fetchone()
     return None if row is None else int(row[0])
+
+
+def check_version(
+    conn: psycopg.Connection,
+    version_id: int,
+    documents: Sequence[PreparedDocument],
+    embedding_model: str,
+) -> list[str]:
+    """Structural checks on a built version before activation. Returns problems (empty if none).
+
+    Confirms the version holds exactly the approved documents it was built from, each with all
+    of its chunks, and that it was embedded with the model the API queries with.
+    """
+    row = conn.execute(
+        "SELECT status, embedding_model FROM index_versions WHERE id = %s", (version_id,)
+    ).fetchone()
+    if row is None:
+        return [f"index version {version_id} does not exist"]
+    problems = []
+    if row[0] != "building":
+        problems.append(f"status is {row[0]}, expected building")
+    if row[1] != embedding_model:
+        problems.append(f"embedded with {row[1]!r}, expected {embedding_model!r}")
+
+    expected = {doc.source.relative_path: len(doc.chunks) for doc in documents}
+    stored: dict[str, int] = dict(
+        conn.execute(
+            "SELECT d.source_path, count(c.id) FROM documents d"
+            " LEFT JOIN chunks c ON c.document_id = d.id"
+            " WHERE d.index_version = %s GROUP BY d.source_path",
+            (version_id,),
+        ).fetchall()
+    )
+    if not expected:
+        problems.append("no approved documents to compare against")
+    for path in sorted(expected.keys() - stored.keys()):
+        problems.append(f"missing document {path}")
+    for path in sorted(stored.keys() - expected.keys()):
+        problems.append(f"unexpected document {path}")
+    for path in sorted(expected.keys() & stored.keys()):
+        if stored[path] != expected[path]:
+            problems.append(f"{path} has {stored[path]} chunk(s), expected {expected[path]}")
+
+    projects = {doc.meta.id for doc in documents if isinstance(doc.meta, ProjectFrontmatter)}
+    stored_projects = {
+        r[0]
+        for r in conn.execute(
+            "SELECT slug FROM projects WHERE index_version = %s", (version_id,)
+        ).fetchall()
+    }
+    if projects != stored_projects:
+        problems.append("project rows do not match the approved project files")
+    return problems
+
+
+def list_versions(conn: psycopg.Connection, limit: int = 10) -> list[tuple[object, ...]]:
+    """Recent versions, newest first: id, status, created, activated, git sha, chunk count."""
+    return conn.execute(
+        "SELECT v.id, v.status, v.created_at, v.activated_at, v.git_sha,"
+        " (SELECT count(*) FROM chunks c WHERE c.index_version = v.id)"
+        " FROM index_versions v ORDER BY v.id DESC LIMIT %s",
+        (limit,),
+    ).fetchall()
