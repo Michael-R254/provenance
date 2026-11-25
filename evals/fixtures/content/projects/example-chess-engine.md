@@ -9,6 +9,8 @@ permission: "fixture, not real"
 summary: A fictional chess engine. Used only for evaluation tests.
 skills: [search algorithms]
 languages: [Rust]
+guardrails:
+  - "The evaluation function is hand-written; a learned evaluation network is only a possible next step."
 ---
 
 ## Overview

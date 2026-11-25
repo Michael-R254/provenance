@@ -10,6 +10,9 @@ summary: A fictional tool that sorts imaginary widgets by colour. Used only for 
 skills: [computer vision]
 languages: [Python]
 frameworks: [ExampleVision]
+guardrails:
+  - "The author wrote the capture loop, the colour classifier and the sorting rules; the conveyor hardware belonged to the existing system."
+  - "A rules engine chooses the bin; the classifier only predicts the colour."
 ---
 
 <!-- Evaluation fixture. Every statement is invented. -->
