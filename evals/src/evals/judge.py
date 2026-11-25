@@ -1,5 +1,6 @@
-"""Grading one generated answer. `AnthropicJudge` uses Claude Opus 5.5 with the fixed rubric in
-`rubrics/judge-v1.md`; `HeuristicJudge` is free and offline, for tests and mock runs only.
+"""Grading one generated answer. `AnthropicJudge` uses Claude Haiku 5.5 by default (cheapest) or
+Claude Opus 5.5 (most careful) with the fixed rubric in `rubrics/judge-v1.md`; `HeuristicJudge`
+is free and offline, for tests and mock runs only.
 """
 
 import json
@@ -18,9 +19,15 @@ EVALS_DIR = Path(__file__).resolve().parents[2]
 RUBRIC_VERSION = "judge-v1"
 RUBRIC_PATH = EVALS_DIR / "rubrics" / f"{RUBRIC_VERSION}.md"
 
-JUDGE_MODEL = "claude-opus-5-5"
+JudgeModel = Literal["claude-haiku-5-5", "claude-opus-5-5"]
+DEFAULT_JUDGE_MODEL: JudgeModel = "claude-haiku-5-5"
+# USD per million tokens (input, output), Anthropic first-party rates.
+JUDGE_PRICES: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.10, 0.50),
+    "claude-opus-5-5": (4.00, 20.00),
+}
 JUDGE_EFFORT: Literal["medium"] = "medium"
-JUDGE_MAX_TOKENS = 3000  # includes adaptive thinking, which Opus 5.5 always uses
+JUDGE_MAX_TOKENS = 3000  # includes adaptive thinking, which both judge models use
 
 
 class Verdict(BaseModel):
@@ -97,25 +104,22 @@ def rubric() -> str:
     return RUBRIC_PATH.read_text(encoding="utf-8")
 
 
-# USD per million tokens (Anthropic first-party rates).
-JUDGE_PRICE = (4.00, 20.00)
-
-
-def judge_cost(tokens_in: int, tokens_out: int) -> float:
-    return (tokens_in * JUDGE_PRICE[0] + tokens_out * JUDGE_PRICE[1]) / 1_000_000
+def judge_cost(model: str, tokens_in: int, tokens_out: int) -> float:
+    price_in, price_out = JUDGE_PRICES[model]
+    return (tokens_in * price_in + tokens_out * price_out) / 1_000_000
 
 
 class AnthropicJudge:
-    """Claude Opus 5.5 as judge. Paid: only constructed after the cost estimate is accepted.
+    """A Claude model as judge. Paid: only constructed after the cost estimate is accepted.
 
     No server-side model fallback: if the judge declines, the item is reported as unjudged
     rather than silently graded by a different model.
     """
 
     name = "anthropic"
-    model = JUDGE_MODEL
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(self, model: JudgeModel = DEFAULT_JUDGE_MODEL, api_key: str | None = None) -> None:
+        self.model: str = model
         self._client = anthropic.Anthropic(api_key=api_key, max_retries=2, timeout=120)
         self._system = rubric()
 
@@ -141,7 +145,7 @@ class AnthropicJudge:
             return Judgement(None, "judge connection error")
 
         usage = response.usage
-        cost = judge_cost(usage.input_tokens, usage.output_tokens)
+        cost = judge_cost(self.model, usage.input_tokens, usage.output_tokens)
 
         def result(verdict: Verdict | None, error: str | None = None) -> Judgement:
             return Judgement(verdict, error, usage.input_tokens, usage.output_tokens, cost)

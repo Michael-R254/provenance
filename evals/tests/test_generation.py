@@ -121,6 +121,8 @@ def test_estimate_errs_high_and_counts_only_paid_parts() -> None:
     free = estimate_cost(asked, "mock", "heuristic")
     assert free.worst == 0 and free.judged == 0
     paid = estimate_cost(asked, "anthropic", "anthropic")
+    careful = estimate_cost(asked, "anthropic", "anthropic", "claude-opus-5-5")
+    assert careful.judge_worst > 30 * paid.judge_worst
     assert paid.judged == 2, "no-evidence questions are costed as if they call the model"
     assert 0 < paid.answers_expected <= paid.answers_worst < 0.01
     assert 0 < paid.judge_expected < paid.judge_worst

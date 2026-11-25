@@ -42,7 +42,9 @@ from pydantic import SecretStr
 
 from evals.dataset import Dataset, Question, load_dataset
 from evals.judge import (
+    DEFAULT_JUDGE_MODEL,
     JUDGE_MAX_TOKENS,
+    JUDGE_PRICES,
     RUBRIC_VERSION,
     AnthropicJudge,
     HeuristicJudge,
@@ -251,7 +253,12 @@ class Estimate:
         return self.answers_worst + self.judge_worst
 
 
-def estimate_cost(dry_run: Sequence[Asked], provider: ProviderName, judge: JudgeName) -> Estimate:
+def estimate_cost(
+    dry_run: Sequence[Asked],
+    provider: ProviderName,
+    judge: JudgeName,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+) -> Estimate:
     """From a free dry run that captured every generation request the paid run would send."""
     answers_expected = answers_worst = judge_expected = judge_worst = 0.0
     judged = 0
@@ -283,8 +290,8 @@ def estimate_cost(dry_run: Sequence[Asked], provider: ProviderName, judge: Judge
                 "x" * max_out * 4,
             )
             judge_in = system_tokens + len(render(item)) // 3
-            judge_worst += judge_cost(judge_in, JUDGE_MAX_TOKENS)
-            judge_expected += judge_cost(judge_in, TYPICAL_JUDGE_OUTPUT_TOKENS)
+            judge_worst += judge_cost(judge_model, judge_in, JUDGE_MAX_TOKENS)
+            judge_expected += judge_cost(judge_model, judge_in, TYPICAL_JUDGE_OUTPUT_TOKENS)
     return Estimate(
         round(answers_expected, 4),
         round(answers_worst, 4),
@@ -295,7 +302,7 @@ def estimate_cost(dry_run: Sequence[Asked], provider: ProviderName, judge: Judge
     )
 
 
-def format_estimate(e: Estimate, provider: ProviderName, judge: JudgeName) -> str:
+def format_estimate(e: Estimate, provider: ProviderName, judge: str) -> str:
     return "\n".join(
         [
             f"Estimated cost for {e.questions} questions"
@@ -536,13 +543,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--embedder", choices=["fake", "fastembed"], default="fastembed")
     parser.add_argument("--provider", choices=["mock", "ollama", "anthropic"], default="mock")
     parser.add_argument("--judge", choices=["heuristic", "anthropic"], default="heuristic")
+    parser.add_argument(
+        "--judge-model",
+        choices=sorted(JUDGE_PRICES),
+        default=DEFAULT_JUDGE_MODEL,
+        help="for --judge anthropic: Haiku is cheapest, Opus is the most careful",
+    )
     parser.add_argument("--database-url")
     parser.add_argument(
         "--reset-database",
         action="store_true",
         help="required: wipes the target database's public schema before indexing",
     )
-    parser.add_argument("--max-cost", type=float, default=3.0, help="hard limit in USD")
+    parser.add_argument("--max-cost", type=float, default=0.25, help="hard limit in USD")
     parser.add_argument("--yes", action="store_true", help="accept the estimate and spend")
     parser.add_argument("--estimate-only", action="store_true")
     parser.add_argument("--gate", action="store_true", help="exit 1 if the release gate fails")
@@ -570,8 +583,9 @@ def main(argv: list[str] | None = None) -> int:
         recruiter = recruiter_consistency(dry, dataset)
     finally:
         dry.close()
-    estimate = estimate_cost(dry_run, args.provider, args.judge)
-    print(format_estimate(estimate, args.provider, args.judge))
+    estimate = estimate_cost(dry_run, args.provider, args.judge, args.judge_model)
+    judge_label = args.judge_model if args.judge == "anthropic" else args.judge
+    print(format_estimate(estimate, args.provider, judge_label))
     print(f"Spending limit (--max-cost): ${args.max_cost:.2f}")
     if args.estimate_only:
         return 0
@@ -586,7 +600,9 @@ def main(argv: list[str] | None = None) -> int:
     settings = _settings(url, args.provider, args.max_cost)
     with psycopg.connect(url, autocommit=True) as conn:
         conn.execute("TRUNCATE query_logs, rate_limits")
-    judge: Judge = AnthropicJudge() if args.judge == "anthropic" else HeuristicJudge()
+    judge: Judge = (
+        AnthropicJudge(args.judge_model) if args.judge == "anthropic" else HeuristicJudge()
+    )
     harness = Harness(settings, _provider(settings), args.embedder)
     graded: list[Graded] = []
     spent = 0.0
@@ -624,7 +640,7 @@ def main(argv: list[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     if args.update_baseline:
-        path = BASELINES / f"fixture-generation-{args.provider}-{judge.name}.json"
+        path = BASELINES / f"fixture-generation-{args.provider}-{judge.model}.json"
         path.write_text(json.dumps({**meta, "summary": summary}, indent=2) + "\n", "utf-8")
         print(f"baseline written to {path}")
 

@@ -9,7 +9,8 @@ ADR 0008.
   and forbidden facts, distinction checks, unanswerable and adversarial questions.
 - `datasets/questions.yaml`: the real question set, written with Michael once real content
   exists. Never generated from the system's own answers.
-- `rubrics/judge-v1.md`: the fixed rubric the judge (Claude Opus 5.5) grades with.
+- `rubrics/judge-v1.md`: the fixed rubric the judge grades with (Claude Haiku 5.5 by default,
+  Claude Opus 5.5 with `--judge-model claude-opus-5-5`).
 - `thresholds.yaml`: generation thresholds, `proposed` until Michael approves them.
 - `baselines/`: stored metrics. CI fails if hybrid recall@k or MRR drops below the retrieval
   baseline.
@@ -38,7 +39,9 @@ uv run python -m evals.generation --reset-database --provider anthropic --judge 
 
 # paid: accept the estimate, never spend more than --max-cost, apply the release gate
 ANTHROPIC_API_KEY=... uv run python -m evals.generation --reset-database \
-  --provider anthropic --judge anthropic --max-cost 3 --yes --gate --update-baseline
+  --provider anthropic --judge anthropic --yes --gate --update-baseline     # Haiku judge, ~$0.03
+# more careful (and ~30x dearer) grading before launch
+  ... --judge-model claude-opus-5-5 --max-cost 2
 ```
 
 Normally the paid run happens in the `eval-generation` workflow, which shows the estimate and

@@ -20,13 +20,18 @@ on:
         options: [anthropic, mock]
         default: anthropic
       judge:
-        description: Model that grades them
+        description: Grader
         type: choice
         options: [anthropic, heuristic]
         default: anthropic
+      judge_model:
+        description: Grading model (Haiku about $0.03 a run; Opus about $0.85, needs max_cost 2)
+        type: choice
+        options: [claude-haiku-5-5, claude-opus-5-5]
+        default: claude-haiku-5-5
       max_cost:
         description: Hard spending limit in USD
-        default: "3"
+        default: "0.25"
       update_baseline:
         description: Write the result as the new baseline (download it from the run's artifacts)
         type: boolean
@@ -44,7 +49,8 @@ concurrency:
 env:
   PROVIDER: ${{ inputs.provider || 'anthropic' }}
   JUDGE: ${{ inputs.judge || 'anthropic' }}
-  MAX_COST: ${{ inputs.max_cost || '3' }}
+  JUDGE_MODEL: ${{ inputs.judge_model || 'claude-haiku-5-5' }}
+  MAX_COST: ${{ inputs.max_cost || '0.25' }}
   PROVENANCE_TEST_DATABASE_URL: postgresql://provenance:provenance-ci-only@localhost:5432/provenance_test
   FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.fastembed
 
@@ -75,7 +81,8 @@ jobs:
       - name: Estimate (free)
         run: |
           uv run --project evals python -m evals.generation --reset-database \
-            --provider "$PROVIDER" --judge "$JUDGE" --max-cost "$MAX_COST" --estimate-only \
+            --provider "$PROVIDER" --judge "$JUDGE" --judge-model "$JUDGE_MODEL" \
+            --max-cost "$MAX_COST" --estimate-only \
             | tee estimate.txt
           { echo '### Estimated cost'; echo '```'; cat estimate.txt; echo '```';
             echo 'Approve the `evaluate` job to spend up to this amount.'; } >> "$GITHUB_STEP_SUMMARY"
@@ -114,7 +121,8 @@ jobs:
         run: |
           set -o pipefail
           uv run --project evals python -m evals.generation --reset-database \
-            --provider "$PROVIDER" --judge "$JUDGE" --max-cost "$MAX_COST" --yes --gate \
+            --provider "$PROVIDER" --judge "$JUDGE" --judge-model "$JUDGE_MODEL" \
+            --max-cost "$MAX_COST" --yes --gate \
             --output generation-report.json $BASELINE_FLAG 2>&1 | tee generation.txt
       - name: Summary
         if: always()

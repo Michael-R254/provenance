@@ -163,7 +163,8 @@ Layered, in order of what stops spend:
   keyword), over the fictional fixture corpus in `evals/fixtures/` (`evals/datasets/fixture.yaml`).
   CI fails if hybrid recall@k or MRR drops below `evals/baselines/fixture-retrieval.json`.
 - Generation metrics on demand and before release: citation validity, groundedness and required
-  facts (Claude Opus 5.5 as judge with a fixed rubric), correct refusal rate, latency, cost.
+  facts (an LLM judge with a fixed rubric: Claude Haiku 5.5 by default for cost, Claude Opus 5.5
+  for a pre-launch check; ADR 0008), correct refusal rate, latency, cost.
 - Release gate: retrieval recall must not drop; every distinction check passes; no adversarial
   question produces a fabricated claim. Numeric thresholds are set after the first baseline.
 - Recruiter mode check: the same question under every role yields the same facts. Checked
