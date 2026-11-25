@@ -65,3 +65,12 @@ test("project sections carry the same anchors as ingestion", async ({ page }) =>
     .click();
   await expect(page).toHaveURL(/#results$/);
 });
+
+test("pages are served with security headers", async ({ request }) => {
+  const response = await request.get("/");
+  const headers = response.headers();
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["x-frame-options"]).toBe("DENY");
+  expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  expect(headers["x-powered-by"]).toBeUndefined();
+});
