@@ -1,0 +1,138 @@
+name: deploy
+
+# On every merge to main: apply database migrations, deploy the API to Cloud Run, then deploy the
+# site to Vercel. Nothing runs until the repository variable DEPLOY_ENABLED is "true", so this
+# workflow stays quiet until the accounts and secrets in README.md ("Deployment") exist.
+#
+# Secrets (GitHub > Settings > Secrets and variables > Actions > Secrets):
+#   NEON_MIGRATE_DATABASE_URL  Neon owner connection string (migrations only)
+#   VERCEL_TOKEN               Vercel access token
+# Variables (same page, Variables tab; not secret):
+#   DEPLOY_ENABLED, GCP_PROJECT_ID, GCP_REGION, GCP_WORKLOAD_IDENTITY_PROVIDER,
+#   GCP_DEPLOY_SERVICE_ACCOUNT, GCP_RUNTIME_SERVICE_ACCOUNT, PRODUCTION_ORIGINS,
+#   VERCEL_ORG_ID, VERCEL_PROJECT_ID
+# Runtime secrets for the API live in Google Secret Manager, never here.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  SERVICE: provenance-api
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/provenance/api:${{ github.sha }}
+
+jobs:
+  migrate:
+    name: migrate (Neon)
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    # Shared with the ingest workflow so migrations and index builds never overlap.
+    concurrency:
+      group: production-database
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked --project ingest
+      - name: Apply migrations
+        env:
+          PROVENANCE_DATABASE_URL: ${{ secrets.NEON_MIGRATE_DATABASE_URL }}
+        run: uv run --project ingest python -m ingest migrate
+
+  api:
+    name: api (Cloud Run)
+    needs: migrate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation: no long-lived Google key is stored
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build and push the image
+        run: |
+          gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" apps/api
+          docker push "$IMAGE"
+      - name: Write the non-secret runtime settings
+        env:
+          ORIGINS: ${{ vars.PRODUCTION_ORIGINS }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          origins = [o.strip() for o in os.environ["ORIGINS"].split(",") if o.strip()]
+          settings = {
+              "PROVENANCE_ENVIRONMENT": "production",
+              "PROVENANCE_LLM_PROVIDER": "anthropic",
+              "PROVENANCE_ALLOWED_ORIGINS": json.dumps(origins),
+          }
+          with open("runtime-env.yaml", "w", encoding="utf-8") as f:
+              for key, value in settings.items():
+                  f.write(f"{key}: {json.dumps(value)}\n")
+          PY
+          cat runtime-env.yaml
+      - name: Deploy
+        # Scale to zero, at most two instances (docs/architecture.md sections 3 and 7).
+        # Cost settings such as PROVENANCE_DAILY_SPEND_CAP_USD keep their code defaults unless
+        # set on the service; see docs/runbook.md for changing them without a deploy.
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --image "$IMAGE" \
+            --service-account "${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}" \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 2 \
+            --concurrency 20 \
+            --cpu 1 \
+            --memory 1Gi \
+            --timeout 60 \
+            --env-vars-file runtime-env.yaml \
+            --update-secrets "PROVENANCE_DATABASE_URL=provenance-api-database-url:latest,PROVENANCE_ANTHROPIC_API_KEY=provenance-anthropic-api-key:latest,PROVENANCE_SESSION_SECRET=provenance-session-secret:latest,PROVENANCE_TURNSTILE_SECRET=provenance-turnstile-secret:latest,PROVENANCE_IP_HASH_SALT=provenance-ip-hash-salt:latest" \
+            --quiet
+      - name: Smoke test
+        run: |
+          url=$(gcloud run services describe "$SERVICE" --project "${{ vars.GCP_PROJECT_ID }}" \
+            --region "${{ vars.GCP_REGION }}" --format 'value(status.url)')
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
+            "$url/health"
+
+  web:
+    name: web (Vercel)
+    needs: api
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      # Built here rather than by Vercel's Git integration, so the site build sees content/
+      # at the repository root and only ships after the API it talks to is live.
+      # NEXT_PUBLIC_API_URL and NEXT_PUBLIC_TURNSTILE_SITE_KEY come from the Vercel project.
+      - name: Pull Vercel settings
+        run: pnpm dlx vercel@66 pull --yes --environment=production --token "${{ secrets.VERCEL_TOKEN }}"
+      - name: Build
+        run: pnpm dlx vercel@66 build --prod --token "${{ secrets.VERCEL_TOKEN }}"
+      - name: Deploy
+        run: pnpm dlx vercel@66 deploy --prebuilt --prod --token "${{ secrets.VERCEL_TOKEN }}"
